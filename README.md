@@ -1,0 +1,1 @@
+Allow the user to get signatures from others on the same document.

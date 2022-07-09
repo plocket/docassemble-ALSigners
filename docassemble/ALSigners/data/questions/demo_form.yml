@@ -1,0 +1,161 @@
+metadata:
+  title: Multi-signer demo file
+# Complete fresh take on multi-signature interviews to
+# refresh my memory. Guided by
+# https://github.com/plocket/docassemble-ALOtherSigners
+---
+# Open questions:
+# - Do we need to account for multiple groups of signers in one
+#    interview E.g. defendants sparately from plaintiffs (??)
+---
+# Necessary to tell us what the sought var is on each page
+# Every interview that wants testing will need to have an element like this
+default screen parts:
+  post: |
+    <div data-variable="${ encode_name(str( user_info().variable )) }" id="trigger" aria-hidden="true" style="display: none;"></div>
+---
+# What are we using util for?
+modules:
+  - docassemble.base.util
+---
+#include:
+#  - docassemble.AssemblyLine:al_package.yml
+#  #- about_signers.yml
+---
+mandatory: True
+# Believe this disables encryption, but is required to share
+# documents among different people
+code: |
+  multi_user = True
+---
+objects:
+  - codefendants: DAList.using(object_type=Individual,complete_attribute='complete')
+  - users: DAList.using(object_type=Individual,ask_number=True, target_number=1)
+---
+id: interview order
+mandatory: True
+code: |
+  # Use AL code to use pre-built questions
+  user_role = 'defendant'
+  
+  # For development - Speed up testing
+  users[0].name.first = 'Uli'
+  users[0].name.last = 'User'
+  users[0].mobile_number = '123-123-1234'
+  
+  codefendants[0].name.first = 'Co1'
+  codefendants[1].name.first = 'Co2'
+  codefendants[2].name.first = 'Co3'
+  
+  # Real code
+  users[0].name.first
+  users[0].mobile_number
+  
+  codefendants.gather()
+  users[0].signing_method
+  
+  end
+---
+# Developer: You must trigger .get_signature_info for each
+#    other signer.
+generic object: Individual
+code: |
+  x.get_signature_info
+  x.complete = True
+---
+id: end
+event: end
+question: Done
+buttons:
+  - Restart: restart
+---
+##################################################################
+##################################################################
+##################################################################
+# In an included file (move there when ready)
+# about_signers.yml
+##################################################################
+##################################################################
+##################################################################
+---
+# Puzzle: How to keep list of other_signers up to date?
+---
+objects:
+  other_signers: DAList.using(object_type=Individual)
+---
+generic object: Individual
+id: signature info gathering
+code: |
+  x.signing_method
+  other_signers.append( x )
+  x.get_signature_info = True
+---
+# `.signature_email` and `.signature_phone` might be different
+#     than other contact information
+# Does not handle user signing for someone by proxy
+generic object: Individual
+id: other signer method
+question: How will ${ x } sign?
+fields:
+  - "They will sign on:": x.signing_method
+    input type: radio
+    choices:
+      - This computer, tablet, or phone: this device
+      - A different computer, tablet, or phone: other device
+      - Paper: paper
+  - How do you want to send them this document to sign?: x.where_to_send_signature_request
+    input type: radio
+    js show if: |
+      val("x.signing_method") == "other device"
+    choices:
+      - By email: email
+      - By smartphone: smartphone
+  - What is their email?: x.signature_email
+    #default: ${ x.email }
+    js show if: |
+      val("x.where_to_send_signature_request") == "email"
+  - What is their phone number?: x.signature_number
+    #default: ${ x.mobile_number }
+    js show if: |
+      val("x.where_to_send_signature_request") == "smartphone"
+---
+# `.signature_email` and `.signature_phone` might be different
+#     than other contact information
+id: user signing method
+question: How will you sign?
+fields:
+  - "I will sign on:": users[0].signing_method
+    input type: radio
+    choices:
+      - This computer, tablet, or phone: this device
+      - A different computer, tablet, or phone: other device
+      - Paper: paper
+  - How do you want to send yourself this document to sign?: users[0].where_to_send_signature_request
+    input type: radio
+    js show if: |
+      val("users[0].signing_method") == "other device"
+    choices:
+      - By email: email
+      - By smartphone: smartphone
+  - What is your email?: users[0].signature_email
+    default: |
+      ${ users[0].email if defined('users[0].email') else '' }
+    js show if: |
+      val("users[0].where_to_send_signature_request") == "email"
+  - What is your phone number?: users[0].signature_number
+    default: |
+      ${ users[0].mobile_number if defined('users[0].mobile_number') else '' }
+    js show if: |
+      val("users[0].where_to_send_signature_request") == "smartphone"
+---
+id: are there more non-user signers
+generic object: DAList
+question: |
+  Is anyone else signing this document?
+subquestion: |
+  % if len(x.elements) > 0:
+  You already told us about ${comma_and_list(set(x.elements))}
+  % endif
+yesno: x.there_is_another
+---
+
